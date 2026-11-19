@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0b1120" />
+  <title>Oscar's Grind Pro - Quản Lý Vốn Theo Ngày</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #0b1120;
+      color: #f8fafc;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .glass-card {
+      background: rgba(30, 41, 59, 0.72);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+  </style>
+</head>
+<body class="min-h-screen pb-14">
+
+  <!-- Sticky Header -->
+  <header class="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3 sm:px-4 py-2.5">
+    <div class="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold mono text-base">
+          OG
+        </div>
+        <div>
+          <h1 class="text-sm sm:text-base font-bold text-white leading-tight">Oscar's Grind Pro</h1>
+          <p class="text-[11px] text-slate-400">Lưu lịch sử theo ngày • Sửa trực tiếp</p>
+        </div>
+      </div>
+
+      <!-- Date Selector & Tools -->
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <div class="flex items-center bg-slate-800 border border-slate-700 rounded-lg px-2 py-1">
+          <span class="text-xs mr-1.5">📅</span>
+          <input type="date" id="activeDateInput" onchange="switchDate(this.value)"
+            class="bg-transparent text-xs font-semibold text-white mono focus:outline-none cursor-pointer" />
+        </div>
+        <button onclick="openSummaryModal()" class="px-2.5 py-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 text-xs font-semibold text-sky-400 border border-sky-500/30 transition">
+          📊 Sổ Tháng
+        </button>
+        <button onclick="exportCSV()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition">
+          📥 CSV
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-3 sm:px-4 pt-4 space-y-4">
+
+    <!-- Configuration Panel -->
+    <section class="glass-card rounded-2xl p-4">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">1. Cấu hình Vốn Ngày (<span id="cfgDateLabel" class="text-emerald-400 mono"></span>)</h2>
+        <div class="flex items-center gap-2">
+          <span id="unitMoneyBadge" class="px-2.5 py-1 rounded-md bg-emerald-500/15 text-emerald-400 text-xs font-semibold mono">
+            1 đv = 100,000 đ
+          </span>
+          <button onclick="resetCurrentDay()" class="px-2.5 py-1 rounded-md bg-rose-500/10 hover:bg-rose-500/20 text-[11px] font-medium text-rose-400 border border-rose-500/30 transition">
+            Xóa ngày này
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Vốn đầu ngày (VNĐ)</label>
+          <input type="number" id="initialCapital" value="10000000" step="500000" onchange="updateSettings()"
+            class="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white mono focus:outline-none focus:border-emerald-500" />
+        </div>
+
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Tỷ lệ 1 đơn vị (% Vốn)</label>
+          <div class="flex items-center gap-1.5">
+            <input type="number" id="unitPercent" value="1" min="0.5" max="20" step="0.5" onchange="updateSettings()"
+              class="w-20 bg-slate-900/90 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white mono focus:outline-none focus:border-emerald-500" />
+            <div class="flex gap-1 flex-1">
+              <button onclick="setPercentPreset(1)" class="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs mono text-slate-300 border border-slate-700">1%</button>
+              <button onclick="setPercentPreset(2)" class="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs mono text-slate-300 border border-slate-700">2%</button>
+              <button onclick="setPercentPreset(5)" class="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs mono text-amber-400 border border-slate-700">5%</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Chế độ tính giá trị 1 đv</label>
+          <select id="percentMode" onchange="updateSettings()"
+            class="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+            <option value="static">Khóa cố định đầu ngày</option>
+            <option value="dynamic">Tái tính sau mỗi chu kỳ</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Cắt lỗ chu kỳ (đv)</label>
+            <input type="number" id="cycleStopLoss" value="15" min="2" max="50" onchange="updateSettings()"
+              class="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-3 py-2 text-sm text-rose-400 mono focus:outline-none focus:border-rose-500" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Cắt lỗ ngày (đv)</label>
+            <input type="number" id="dailyStopLoss" value="20" min="3" max="100" onchange="updateSettings()"
+              class="w-full bg-slate-900/90 border border-slate-700 rounded-xl px-3 py-2 text-sm text-rose-400 mono focus:outline-none focus:border-rose-500" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Risk Warning Banner -->
+      <div id="riskWarningBanner" class="hidden mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div class="text-xs text-amber-300">
+          ⚠️ <strong>Cảnh báo rủi ro:</strong> Mức <span id="warnPctText" class="font-bold">5%</span>/đv tương đương tổng vốn <span id="warnTotalUnits" class="font-bold">20 đv</span>. Chạm cắt lỗ <span id="warnStopText" class="font-bold">-15 đv</span> sẽ mất <span id="warnLossPct" class="font-bold">75%</span> vốn ngày!
+        </div>
+        <button onclick="autoAdjustStopLoss()" class="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition">
+          Hạ Cắt lỗ về an toàn
+        </button>
+      </div>
+    </section>
+
+    <!-- Live KPI Dashboard -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="glass-card rounded-2xl p-3.5 sm:p-4">
+        <span class="text-xs text-slate-400 block mb-1">Số dư vốn trong ngày</span>
+        <div id="currentBalanceDisplay" class="text-base sm:text-xl font-extrabold text-white mono">10,000,000 đ</div>
+        <span id="totalPnLUnitDisplay" class="text-xs font-medium text-slate-400 mono mt-0.5 block">Lãi/Lỗ: 0.00 đv</span>
+      </div>
+
+      <div class="glass-card rounded-2xl p-3.5 sm:p-4">
+        <span class="text-xs text-slate-400 block mb-1">Chu kỳ hiện tại (#<span id="cycleNumberDisplay">1</span>)</span>
+        <div id="cyclePnLDisplay" class="text-base sm:text-xl font-extrabold text-emerald-400 mono">0.00 đv</div>
+        <span class="text-xs text-slate-400 mt-0.5 block">Mục tiêu chu kỳ: +1.00 đv</span>
+      </div>
+
+      <div class="glass-card rounded-2xl p-3.5 sm:p-4">
+        <span class="text-xs text-slate-400 block mb-1">Chu kỳ hoàn thành</span>
+        <div id="completedCyclesDisplay" class="text-base sm:text-xl font-extrabold text-sky-400 mono">0</div>
+        <span id="winRateDisplay" class="text-xs text-slate-400 mt-0.5 block">Thắng/Thua: 0W - 0L</span>
+      </div>
+
+      <div class="glass-card rounded-2xl p-3.5 sm:p-4">
+        <span class="text-xs text-slate-400 block mb-1">Trạng thái hệ thống</span>
+        <div id="systemStatusBadge" class="inline-flex items-center px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-bold mt-0.5">
+          ● SẴN SÀNG VÀO LỆNH
+        </div>
+        <span id="capRuleIndicator" class="text-[11px] text-slate-400 mt-1 block">Quy tắc trần: Chế độ chờ</span>
+      </div>
+    </section>
+
+    <!-- Command Center -->
+    <section class="glass-card rounded-2xl p-4 sm:p-5 border-emerald-500/30">
+      <div class="flex flex-col md:flex-row items-center justify-between gap-5">
+        <div class="text-center md:text-left">
+          <span class="text-xs uppercase tracking-wider font-bold text-emerald-400 block mb-1">
+            LỆNH TIẾP THEO (VÁN #<span id="nextHandNumber">1</span>)
+          </span>
+          <div class="flex items-baseline justify-center md:justify-start gap-2.5">
+            <span id="nextBetUnits" class="text-4xl sm:text-5xl font-black text-white mono">1</span>
+            <span class="text-base font-semibold text-slate-400">đơn vị</span>
+          </div>
+          <div id="nextBetMoney" class="text-lg sm:text-xl font-bold text-emerald-400 mono mt-1">
+            = 100,000 VNĐ
+          </div>
+          <p id="nextBetReason" class="text-xs text-slate-400 mt-1.5">
+            Khởi đầu chu kỳ mới với 1 đơn vị tiêu chuẩn.
+          </p>
+        </div>
+
+        <div id="actionButtonsGroup" class="w-full md:w-auto flex flex-col gap-2.5">
+          <div class="grid grid-cols-2 gap-2.5">
+            <button onclick="recordResult('W_PLAYER')" class="px-5 py-3.5 rounded-xl bg-sky-600 hover:bg-sky-500 active:scale-[0.98] text-white font-bold text-sm shadow-lg shadow-sky-900/30 transition flex flex-col items-center">
+              <span>THẮNG PLAYER</span>
+              <span class="text-[11px] font-normal text-sky-200 mono">Tỷ lệ 1 : 1 (+1.00)</span>
+            </button>
+            <button onclick="recordResult('W_BANKER')" class="px-5 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-bold text-sm shadow-lg shadow-emerald-900/30 transition flex flex-col items-center">
+              <span>THẮNG BANKER</span>
+              <span class="text-[11px] font-normal text-emerald-200 mono">Trừ phế 5% (+0.95)</span>
+            </button>
+          </div>
+          <div class="grid grid-cols-3 gap-2.5">
+            <button onclick="recordResult('L')" class="col-span-2 px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 active:scale-[0.98] text-white font-bold text-sm shadow-lg shadow-rose-900/30 transition">
+              THUA (LOSS)
+            </button>
+            <button onclick="recordResult('T')" class="px-3 py-3 rounded-xl bg-slate-700 hover:bg-slate-600 active:scale-[0.98] text-slate-200 font-semibold text-sm transition">
+              HÒA (TIE)
+            </button>
+          </div>
+          <button onclick="undoLastHand()" id="undoBtn" disabled class="w-full py-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 disabled:opacity-40 text-xs text-slate-300 border border-slate-700 transition">
+            ↩ Hoàn tác ván vừa nhập (Undo)
+          </button>
+        </div>
+
+        <!-- Circuit Breaker Locked Alert -->
+        <div id="circuitBreakerAlert" class="hidden w-full md:w-auto bg-rose-950/90 border border-rose-500/50 rounded-xl p-4 text-center max-w-md">
+          <div class="text-rose-400 font-extrabold text-base mb-1">🛑 NGẮT MẠCH BẢO VỆ VỐN KÍCH HOẠT</div>
+          <p id="circuitBreakerMsg" class="text-xs text-rose-200 mb-3"></p>
+          <button onclick="startNewCycleAfterStop()" class="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition">
+            Mở khóa & Bắt đầu chu kỳ mới
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Chart & Editable History -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <section class="lg:col-span-5 glass-card rounded-2xl p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Biểu đồ Vốn Trong Ngày</h3>
+          <span class="text-[11px] text-slate-500 mono">Đơn vị (đv)</span>
+        </div>
+        <div class="relative h-60 w-full">
+          <canvas id="equityChart"></canvas>
+        </div>
+      </section>
+
+      <section class="lg:col-span-7 glass-card rounded-2xl p-4 flex flex-col">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Nhật ký Ván (Bấm vào kết quả để sửa)</h3>
+          </div>
+          <span id="historyCountBadge" class="text-xs text-slate-400 mono">0 ván</span>
+        </div>
+        <div class="overflow-y-auto max-h-60 rounded-xl border border-slate-800">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead class="bg-slate-900/95 text-slate-400 sticky top-0 z-10">
+              <tr>
+                <th class="py-2 px-2">Ván</th>
+                <th class="py-2 px-2">CK</th>
+                <th class="py-2 px-2">Cược</th>
+                <th class="py-2 px-2">Kết quả (Sửa)</th>
+                <th class="py-2 px-2 text-right">Lũy kế CK</th>
+                <th class="py-2 px-2 text-right">Tổng (đv)</th>
+                <th class="py-2 px-2 text-center">Xóa</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody" class="divide-y divide-slate-800/70 mono">
+              <tr>
+                <td colspan="7" class="py-8 text-center text-slate-500 font-sans">Chưa có dữ liệu cho ngày này.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Monthly / Multi-Day Summary Modal -->
+  <div id="summaryModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-5 shadow-2xl max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+        <div>
+          <h3 class="text-base font-bold text-white">📊 Sổ Tổng Kết Lịch Sử Các Ngày</h3>
+          <p class="text-xs text-slate-400">Bấm vào một ngày bất kỳ để mở lại và chỉnh sửa chi tiết ngày đó</p>
+        </div>
+        <button onclick="closeSummaryModal()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center">✕</button>
+      </div>
+
+      <!-- Overall Stats -->
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <div class="bg-slate-800/70 rounded-xl p-3 border border-slate-700/60">
+          <span class="text-[11px] text-slate-400 block">Tổng số ngày chơi</span>
+          <span id="sumTotalDays" class="text-lg font-bold text-white mono">0 ngày</span>
+        </div>
+        <div class="bg-slate-800/70 rounded-xl p-3 border border-slate-700/60">
+          <span class="text-[11px] text-slate-400 block">Tổng lãi/lỗ (đv)</span>
+          <span id="sumTotalUnits" class="text-lg font-bold text-emerald-400 mono">0.00 đv</span>
+        </div>
+        <div class="bg-slate-800/70 rounded-xl p-3 border border-slate-700/60">
+          <span class="text-[11px] text-slate-400 block">Tổng lãi/lỗ (VNĐ)</span>
+          <span id="sumTotalMoney" class="text-lg font-bold text-emerald-400 mono">0 đ</span>
+        </div>
+      </div>
+
+      <!-- Days List -->
+      <div class="overflow-y-auto flex-1 rounded-xl border border-slate-800 mb-4">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead class="bg-slate-950 text-slate-400 sticky top-0">
+            <tr>
+              <th class="py-2.5 px-3">Ngày</th>
+              <th class="py-2.5 px-3">Số ván</th>
+              <th class="py-2.5 px-3">Chu kỳ đạt</th>
+              <th class="py-2.5 px-3 text-right">Lãi/Lỗ (đv)</th>
+              <th class="py-2.5 px-3 text-right">Lãi/Lỗ (VNĐ)</th>
+            </tr>
+          </thead>
+          <tbody id="summaryTableBody" class="divide-y divide-slate-800 mono"></tbody>
+        </table>
+      </div>
+
+      <!-- Backup & Restore Footer -->
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+        <div class="flex gap-2">
+          <button onclick="exportBackupJSON()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700">
+            💾 Sao lưu toàn bộ dữ liệu (.JSON)
+          </button>
+          <label class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700 cursor-pointer">
+            📂 Khôi phục từ file
+            <input type="file" accept=".json" onchange="importBackupJSON(event)" class="hidden" />
+          </label>
+        </div>
+        <button onclick="closeSummaryModal()" class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold">
+          Đóng
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'oscars_grind_multiday_v3';
+
+    // Database storing all days keyed by YYYY-MM-DD
+    let db = {
+      activeDate: getTodayStr(),
+      days: {}
+    };
+
+    let state = null;
+    let equityChart = null;
+
+    function getTodayStr() {
+      const now = new Date();
+      const offset = now.getTimezoneOffset() * 60000;
+      return new Date(now - offset).toISOString().slice(0, 10);
+    }
+
+    function createDefaultDayState(prevDayBalance = 10000000, prevConfig = null) {
+      const initCap = prevConfig ? prevConfig.initialCapital : prevDayBalance;
+      const pct = prevConfig ? prevConfig.unitPercent : 1;
+      const mode = prevConfig ? prevConfig.percentMode : 'static';
+      const cSL = prevConfig ? prevConfig.cycleStopLoss : 15;
+      const dSL = prevConfig ? prevConfig.dailyStopLoss : 20;
+      const unitVal = Math.max(1000, Math.round((initCap * (pct / 100)) / 1000) * 1000);
+
+      return {
+        initialCapital: initCap,
+        unitPercent: pct,
+        percentMode: mode,
+        cycleStopLoss: cSL,
+        dailyStopLoss: dSL,
+        activeUnitValue: unitVal,
+        currentBalance: initCap,
+        totalPnLUnits: 0,
+        cycleNumber: 1,
+        cyclePnL: 0,
+        nextBetUnits: 1,
+        completedCycles: 0,
+        wins: 0,
+        losses: 0,
+        ties: 0,
+        isLocked: false,
+        lockReason: '',
+        rawHistory: [] // Stores array of result codes: ['W_PLAYER', 'L', ...]
+      };
+    }
+
+    function loadDB() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          db = JSON.parse(saved);
+        } catch (e) { console.error(e); }
+      }
+      if (!db.activeDate) db.activeDate = getTodayStr();
+      if (!db.days[db.activeDate]) {
+        db.days[db.activeDate] = createDefaultDayState();
+      }
+      state = db.days[db.activeDate];
+      document.getElementById('activeDateInput').value = db.activeDate;
+      syncInputsFromState();
+      initChart();
+      recomputeDayFromRaw();
+    }
+
+    function saveDB() {
+      db.days[db.activeDate] = state;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    }
+
+    function syncInputsFromState() {
+      document.getElementById('initialCapital').value = state.initialCapital;
+      document.getElementById('unitPercent').value = state.unitPercent;
+      document.getElementById('percentMode').value = state.percentMode;
+      document.getElementById('cycleStopLoss').value = state.cycleStopLoss;
+      document.getElementById('dailyStopLoss').value = state.dailyStopLoss;
+      document.getElementById('cfgDateLabel').textContent = db.activeDate;
+    }
+
+    function switchDate(newDate) {
+      if (!newDate) return;
+      saveDB();
+      const prevConfig = {
+        initialCapital: state.initialCapital,
+        unitPercent: state.unitPercent,
+        percentMode: state.percentMode,
+        cycleStopLoss: state.cycleStopLoss,
+        dailyStopLoss: state.dailyStopLoss
+      };
+      db.activeDate = newDate;
+      if (!db.days[newDate]) {
+        db.days[newDate] = createDefaultDayState(prevConfig.initialCapital, prevConfig);
+      }
+      state = db.days[newDate];
+      document.getElementById('activeDateInput').value = newDate;
+      syncInputsFromState();
+      recomputeDayFromRaw();
+    }
+
+    function formatCurrency(num) {
+      return Math.round(num).toLocaleString('vi-VN') + ' đ';
+    }
+
+    function setPercentPreset(pct) {
+      document.getElementById('unitPercent').value = pct;
+      updateSettings();
+    }
+
+    function autoAdjustStopLoss() {
+      const pct = parseFloat(document.getElementById('unitPercent').value) || 1;
+      const totalUnits = Math.floor(100 / pct);
+      document.getElementById('cycleStopLoss').value = Math.max(3, Math.floor(totalUnits * 0.25));
+      document.getElementById('dailyStopLoss').value = Math.max(5, Math.floor(totalUnits * 0.35));
+      updateSettings();
+    }
+
+    function updateSettings() {
+      state.initialCapital = parseFloat(document.getElementById('initialCapital').value) || 10000000;
+      state.unitPercent = parseFloat(document.getElementById('unitPercent').value) || 1;
+      state.percentMode = document.getElementById('percentMode').value;
+      state.cycleStopLoss = parseFloat(document.getElementById('cycleStopLoss').value) || 15;
+      state.dailyStopLoss = parseFloat(document.getElementById('dailyStopLoss').value) || 20;
+      recomputeDayFromRaw();
+    }
+
+    function checkRiskWarning() {
+      const totalUnits = 100 / state.unitPercent;
+      const potentialLossPct = (state.cycleStopLoss / totalUnits) * 100;
+      const banner = document.getElementById('riskWarningBanner');
+
+      if (potentialLossPct > 35) {
+        banner.classList.remove('hidden');
+        document.getElementById('warnPctText').textContent = state.unitPercent + '%';
+        document.getElementById('warnTotalUnits').textContent = totalUnits.toFixed(0) + ' đv';
+        document.getElementById('warnStopText').textContent = '-' + state.cycleStopLoss + ' đv';
+        document.getElementById('warnLossPct').textContent = Math.min(100, potentialLossPct).toFixed(0) + '%';
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
+
+    // Core Deterministic Engine: Replays rawHistory to compute exact state
+    let computedRows = [];
+
+    function recomputeDayFromRaw() {
+      const raw = [...(state.rawHistory || [])];
+      state.activeUnitValue = Math.max(1000, Math.round((state.initialCapital * (state.unitPercent / 100)) / 1000) * 1000);
+      state.currentBalance = state.initialCapital;
+      state.totalPnLUnits = 0;
+      state.cycleNumber = 1;
+      state.cyclePnL = 0;
+      state.nextBetUnits = 1;
+      state.completedCycles = 0;
+      state.wins = 0;
+      state.losses = 0;
+      state.ties = 0;
+      state.isLocked = false;
+      state.lockReason = '';
+      computedRows = [];
+
+      raw.forEach((type, idx) => {
+        const betUnits = state.nextBetUnits;
+        const unitValAtHand = state.activeUnitValue;
+        const betMoney = betUnits * unitValAtHand;
+        let deltaUnits = 0;
+
+        if (type === 'W_PLAYER') {
+          deltaUnits = betUnits * 1.0;
+          state.wins++;
+        } else if (type === 'W_BANKER') {
+          deltaUnits = betUnits * 0.95;
+          state.wins++;
+        } else if (type === 'L') {
+          deltaUnits = -betUnits;
+          state.losses++;
+        } else if (type === 'T') {
+          deltaUnits = 0;
+          state.ties++;
+        }
+
+        const deltaMoney = deltaUnits * unitValAtHand;
+        state.currentBalance += deltaMoney;
+        state.totalPnLUnits = Number((state.totalPnLUnits + deltaUnits).toFixed(4));
+        state.cyclePnL = Number((state.cyclePnL + deltaUnits).toFixed(4));
+
+        const handCycle = state.cycleNumber;
+        const cyclePnLSnapshot = state.cyclePnL;
+        let statusNote = 'Đang chạy';
+        let reasonText = '';
+
+        if (type === 'T') {
+          statusNote = 'Hòa - Giữ cược';
+          reasonText = `Ván trước Hòa: Giữ nguyên mức cược ${state.nextBetUnits} đơn vị.`;
+        } else if (state.cyclePnL >= 0.99) {
+          statusNote = 'CHỐT LÃI (+1 đv)';
+          state.completedCycles++;
+          state.cycleNumber++;
+          state.cyclePnL = 0;
+          state.nextBetUnits = 1;
+          if (state.percentMode === 'dynamic') {
+            state.activeUnitValue = Math.max(1000, Math.round((state.currentBalance * (state.unitPercent / 100)) / 1000) * 1000);
+          }
+          reasonText = 'Hoàn thành mục tiêu +1 đv! Reset về 1 đơn vị cho chu kỳ mới.';
+        } else if (state.cyclePnL <= -state.cycleStopLoss) {
+          statusNote = 'CẮT LỖ CHU KỲ';
+          state.isLocked = true;
+          state.lockReason = `Chu kỳ #${handCycle} đã chạm cắt lỗ cứng (-${state.cycleStopLoss} đv).`;
+        } else if (state.totalPnLUnits <= -state.dailyStopLoss) {
+          statusNote = 'CẮT LỖ NGÀY';
+          state.isLocked = true;
+          state.lockReason = `Tổng lỗ ngày đã chạm ngưỡng ngắt mạch (-${state.dailyStopLoss} đv).`;
+        } else if (type === 'L') {
+          statusNote = 'Thua - Giữ cược';
+          reasonText = `Quy tắc 2 (Khi Thua): Giữ nguyên mức cược ${state.nextBetUnits} đv.`;
+        } else {
+          const rawNext = betUnits + 1;
+          const neededToTarget = Math.ceil(1 - state.cyclePnL);
+          state.nextBetUnits = Math.max(1, Math.min(rawNext, neededToTarget));
+          if (rawNext > neededToTarget) {
+            statusNote = 'Thắng - Áp dụng Trần';
+            reasonText = `Quy tắc Trần (Cap): Thu nhỏ xuống ${state.nextBetUnits} đv để chạm vừa đủ +1 đv.`;
+          } else {
+            statusNote = 'Thắng - Tăng +1 đv';
+            reasonText = `Quy tắc 3 (Khi Thắng): Tăng +1 đv lên ${state.nextBetUnits} đv để gỡ lỗ chu kỳ.`;
+          }
+        }
+
+        computedRows.push({
+          index: idx,
+          hand: idx + 1,
+          cycle: handCycle,
+          betUnits,
+          betMoney,
+          type,
+          deltaUnits,
+          cyclePnLAfter: cyclePnLSnapshot,
+          totalPnLUnits: state.totalPnLUnits,
+          balanceAfter: state.currentBalance,
+          statusNote,
+          reasonText
+        });
+      });
+
+      saveDB();
+      renderUI();
+    }
+
+    function recordResult(type) {
+      if (state.isLocked) return;
+      state.rawHistory.push(type);
+      recomputeDayFromRaw();
+    }
+
+    function editHandResult(index, newType) {
+      state.rawHistory[index] = newType;
+      recomputeDayFromRaw();
+    }
+
+    function deleteHandAt(index) {
+      state.rawHistory.splice(index, 1);
+      recomputeDayFromRaw();
+    }
+
+    function undoLastHand() {
+      if (state.rawHistory.length === 0) return;
+      state.rawHistory.pop();
+      recomputeDayFromRaw();
+    }
+
+    function startNewCycleAfterStop() {
+      state.isLocked = false;
+      state.lockReason = '';
+      state.cycleNumber++;
+      state.cyclePnL = 0;
+      state.nextBetUnits = 1;
+      if (state.percentMode === 'dynamic') {
+        state.activeUnitValue = Math.max(1000, Math.round((state.currentBalance * (state.unitPercent / 100)) / 1000) * 1000);
+      }
+      saveDB();
+      renderUI();
+    }
+
+    function resetCurrentDay() {
+      if (!confirm(`Xóa toàn bộ dữ liệu ván của ngày ${db.activeDate}?`)) return;
+      state.rawHistory = [];
+      recomputeDayFromRaw();
+    }
+
+    function initChart() {
+      const ctx = document.getElementById('equityChart').getContext('2d');
+      equityChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: ['0'],
+          datasets: [{
+            label: 'Lợi nhuận tích lũy (đv)',
+            data: [0],
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+            borderWidth: 2.5,
+            pointRadius: 3,
+            fill: true,
+            tension: 0.25
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: 'rgba(148, 163, 184, 0.08)' }, ticks: { color: '#64748b', font: { size: 10 } } },
+            y: { grid: { color: 'rgba(148, 163, 184, 0.08)' }, ticks: { color: '#64748b', font: { size: 10 } } }
+          }
+        }
+      });
+    }
+
+    function updateChart() {
+      if (!equityChart) return;
+      const labels = ['0', ...computedRows.map(h => '#' + h.hand)];
+      const data = [0, ...computedRows.map(h => h.totalPnLUnits)];
+      const isPositive = state.totalPnLUnits >= 0;
+
+      equityChart.data.labels = labels;
+      equityChart.data.datasets[0].data = data;
+      equityChart.data.datasets[0].borderColor = isPositive ? '#10b981' : '#f43f5e';
+      equityChart.data.datasets[0].backgroundColor = isPositive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(244, 63, 94, 0.12)';
+      equityChart.data.datasets[0].pointBackgroundColor = isPositive ? '#10b981' : '#f43f5e';
+      equityChart.update();
+    }
+
+    function renderUI() {
+      checkRiskWarning();
+
+      document.getElementById('unitMoneyBadge').textContent = `1 đv = ${formatCurrency(state.activeUnitValue)}`;
+
+      const balEl = document.getElementById('currentBalanceDisplay');
+      balEl.textContent = formatCurrency(state.currentBalance);
+      balEl.className = `text-base sm:text-xl font-extrabold mono ${state.currentBalance >= state.initialCapital ? 'text-white' : 'text-rose-400'}`;
+
+      const pnlSign = state.totalPnLUnits > 0 ? '+' : '';
+      const totalPnLEl = document.getElementById('totalPnLUnitDisplay');
+      totalPnLEl.textContent = `Lãi/Lỗ: ${pnlSign}${state.totalPnLUnits.toFixed(2)} đv`;
+      totalPnLEl.className = `text-xs font-medium mono mt-0.5 block ${state.totalPnLUnits >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+      document.getElementById('cycleNumberDisplay').textContent = state.cycleNumber;
+      const cSign = state.cyclePnL > 0 ? '+' : '';
+      const cPnLEl = document.getElementById('cyclePnLDisplay');
+      cPnLEl.textContent = `${cSign}${state.cyclePnL.toFixed(2)} đv`;
+      cPnLEl.className = `text-base sm:text-xl font-extrabold mono ${state.cyclePnL >= 0 ? 'text-emerald-400' : 'text-amber-400'}`;
+
+      document.getElementById('completedCyclesDisplay').textContent = state.completedCycles;
+      document.getElementById('winRateDisplay').textContent = `Thắng/Thua: ${state.wins}W - ${state.losses}L`;
+
+      document.getElementById('nextHandNumber').textContent = computedRows.length + 1;
+      document.getElementById('nextBetUnits').textContent = state.nextBetUnits;
+      document.getElementById('nextBetMoney').textContent = `= ${formatCurrency(state.nextBetUnits * state.activeUnitValue)}`;
+
+      const lastEntry = computedRows[computedRows.length - 1];
+      document.getElementById('nextBetReason').textContent = lastEntry
+        ? lastEntry.reasonText
+        : 'Khởi đầu chu kỳ mới với 1 đơn vị tiêu chuẩn.';
+
+      const capEl = document.getElementById('capRuleIndicator');
+      if (lastEntry && lastEntry.statusNote.includes('Trần')) {
+        capEl.textContent = 'Quy tắc trần: ĐANG KÍCH HOẠT';
+        capEl.className = 'text-[11px] text-amber-400 font-semibold mt-1 block';
+      } else {
+        capEl.textContent = 'Quy tắc trần: Chế độ chờ';
+        capEl.className = 'text-[11px] text-slate-400 mt-1 block';
+      }
+
+      const statusBadge = document.getElementById('systemStatusBadge');
+      const actionBtns = document.getElementById('actionButtonsGroup');
+      const cbAlert = document.getElementById('circuitBreakerAlert');
+
+      if (state.isLocked) {
+        statusBadge.textContent = '🛑 ĐÃ NGẮT MẠCH';
+        statusBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-400 text-xs font-bold mt-0.5';
+        actionBtns.classList.add('hidden');
+        cbAlert.classList.remove('hidden');
+        document.getElementById('circuitBreakerMsg').textContent = state.lockReason;
+      } else {
+        statusBadge.textContent = '● SẴN SÀNG VÀO LỆNH';
+        statusBadge.className = 'inline-flex items-center px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-bold mt-0.5';
+        actionBtns.classList.remove('hidden');
+        cbAlert.classList.add('hidden');
+      }
+
+      document.getElementById('undoBtn').disabled = computedRows.length === 0;
+      document.getElementById('historyCountBadge').textContent = `${computedRows.length} ván`;
+
+      const tbody = document.getElementById('historyTableBody');
+      if (computedRows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-slate-500 font-sans">Chưa có dữ liệu cho ngày này.</td></tr>';
+      } else {
+        tbody.innerHTML = [...computedRows].reverse().map(h => {
+          const isWin = h.deltaUnits > 0;
+          const isLoss = h.deltaUnits < 0;
+          const rowBg = h.statusNote.includes('CHỐT LÃI') ? 'bg-emerald-500/10' : (h.statusNote.includes('CẮT LỖ') ? 'bg-rose-500/10' : '');
+          const selColor = isWin ? 'text-emerald-400 border-emerald-500/40' : (isLoss ? 'text-rose-400 border-rose-500/40' : 'text-slate-300 border-slate-600');
+          return `
+            <tr class="${rowBg}">
+              <td class="py-1.5 px-2 text-slate-300">#${h.hand}</td>
+              <td class="py-1.5 px-2 text-slate-400">CK${h.cycle}</td>
+              <td class="py-1.5 px-2 text-white font-semibold">${h.betUnits} đv</td>
+              <td class="py-1.5 px-2">
+                <select onchange="editHandResult(${h.index}, this.value)" class="bg-slate-900 border ${selColor} rounded px-1.5 py-0.5 text-[11px] font-bold focus:outline-none">
+                  <option value="W_PLAYER" ${h.type === 'W_PLAYER' ? 'selected' : ''}>Thắng (P)</option>
+                  <option value="W_BANKER" ${h.type === 'W_BANKER' ? 'selected' : ''}>Thắng (B)</option>
+                  <option value="L" ${h.type === 'L' ? 'selected' : ''}>Thua (L)</option>
+                  <option value="T" ${h.type === 'T' ? 'selected' : ''}>Hòa (T)</option>
+                </select>
+              </td>
+              <td class="py-1.5 px-2 text-right ${h.cyclePnLAfter >= 0 ? 'text-emerald-400' : 'text-amber-400'}">${h.cyclePnLAfter > 0 ? '+' : ''}${h.cyclePnLAfter.toFixed(2)}</td>
+              <td class="py-1.5 px-2 text-right font-bold ${h.totalPnLUnits >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${h.totalPnLUnits > 0 ? '+' : ''}${h.totalPnLUnits.toFixed(2)}</td>
+              <td class="py-1.5 px-2 text-center">
+                <button onclick="deleteHandAt(${h.index})" title="Xóa ván này" class="text-slate-500 hover:text-rose-400 px-1">✕</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      updateChart();
+    }
+
+    // Summary Modal Logic
+    function openSummaryModal() {
+      saveDB();
+      const dates = Object.keys(db.days).sort().reverse();
+      let activeDaysCount = 0;
+      let sumUnits = 0;
+      let sumMoney = 0;
+
+      const rowsHtml = dates.map(d => {
+        const dayData = db.days[d];
+        const handsCount = (dayData.rawHistory || []).length;
+        if (handsCount === 0 && d !== db.activeDate) return '';
+        if (handsCount > 0) activeDaysCount++;
+
+        const pnlU = dayData.totalPnLUnits || 0;
+        const pnlM = (dayData.currentBalance || dayData.initialCapital) - dayData.initialCapital;
+        sumUnits += pnlU;
+        sumMoney += pnlM;
+
+        const colorClass = pnlU > 0 ? 'text-emerald-400' : (pnlU < 0 ? 'text-rose-400' : 'text-slate-400');
+        return `
+          <tr onclick="selectDateFromModal('${d}')" class="hover:bg-slate-800/80 cursor-pointer transition">
+            <td class="py-2.5 px-3 font-semibold text-white">${d} ${d === db.activeDate ? '<span class="text-[10px] text-sky-400">(Đang mở)</span>' : ''}</td>
+            <td class="py-2.5 px-3 text-slate-300">${handsCount} ván</td>
+            <td class="py-2.5 px-3 text-sky-400">${dayData.completedCycles || 0} CK</td>
+            <td class="py-2.5 px-3 text-right font-bold ${colorClass}">${pnlU > 0 ? '+' : ''}${pnlU.toFixed(2)} đv</td>
+            <td class="py-2.5 px-3 text-right font-bold ${colorClass}">${pnlM > 0 ? '+' : ''}${formatCurrency(pnlM)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('sumTotalDays').textContent = `${activeDaysCount} ngày`;
+      const uEl = document.getElementById('sumTotalUnits');
+      uEl.textContent = `${sumUnits > 0 ? '+' : ''}${sumUnits.toFixed(2)} đv`;
+      uEl.className = `text-lg font-bold mono ${sumUnits >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+      const mEl = document.getElementById('sumTotalMoney');
+      mEl.textContent = `${sumMoney > 0 ? '+' : ''}${formatCurrency(sumMoney)}`;
+      mEl.className = `text-lg font-bold mono ${sumMoney >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+      document.getElementById('summaryTableBody').innerHTML = rowsHtml || '<tr><td colspan="5" class="py-6 text-center text-slate-500 font-sans">Chưa có dữ liệu ngày nào.</td></tr>';
+      document.getElementById('summaryModal').classList.remove('hidden');
+    }
+
+    function closeSummaryModal() {
+      document.getElementById('summaryModal').classList.add('hidden');
+    }
+
+    function selectDateFromModal(dateStr) {
+      closeSummaryModal();
+      switchDate(dateStr);
+    }
+
+    // Export / Import JSON Backup
+    function exportBackupJSON() {
+      saveDB();
+      const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Oscars_Grind_Backup_${getTodayStr()}.json`;
+      a.click();
+    }
+
+    function importBackupJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported && imported.days) {
+            db = imported;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+            loadDB();
+            closeSummaryModal();
+            alert('Khôi phục dữ liệu thành công!');
+          } else {
+            alert('File sao lưu không hợp lệ!');
+          }
+        } catch (err) {
+          alert('Lỗi đọc file sao lưu!');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function exportCSV() {
+      if (computedRows.length === 0) {
+        alert('Chưa có dữ liệu trong ngày để xuất file!');
+        return;
+      }
+      let csv = '\uFEFFNgày,Ván,Chu kỳ,Mức cược (đv),Số tiền cược (VNĐ),Kết quả,Lời/Lỗ ván (đv),Lũy kế chu kỳ (đv),Tổng PnL ngày (đv),Số dư vốn (VNĐ),Trạng thái\n';
+      computedRows.forEach(h => {
+        csv += `${db.activeDate},${h.hand},${h.cycle},${h.betUnits},${h.betMoney},"${h.type}",${h.deltaUnits},${h.cyclePnLAfter},${h.totalPnLUnits},${Math.round(h.balanceAfter)},"${h.statusNote}"\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Oscars_Grind_${db.activeDate}.csv`;
+      a.click();
+    }
+
+    window.addEventListener('DOMContentLoaded', loadDB);
+  </script>
+</body>
+</html>
